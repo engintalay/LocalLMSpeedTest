@@ -5,6 +5,7 @@ import requests
 import os
 import sys
 from pathlib import Path
+from datetime import datetime
 
 try:
     import readchar
@@ -15,6 +16,7 @@ except ImportError:
 
 CONFIG_FILE = Path.home() / ".llm-benchmark-config.json"
 PROMPTS_DIR = Path(__file__).parent / "machine_tests/ml/auto_prompter/prompts"
+RESULTS_FILE = Path(__file__).parent / "results.txt"
 
 DEFAULT_CONFIG = {
     "ollama_url": "http://localhost:11434",
@@ -38,6 +40,55 @@ def get_prompts():
 
 def load_prompt(filename):
     return (PROMPTS_DIR / filename).read_text().strip()
+
+def count_tokens(text):
+    # Simple approximation: ~4 chars per token
+    return len(text) // 4
+
+def format_prompt_preview(prompt):
+    lines = prompt.split('\n')
+    if len(lines) <= 10:
+        return prompt
+    preview = '\n'.join(lines[:5])
+    preview += f"\n\n... ({len(lines) - 10} lines omitted) ...\n\n"
+    preview += '\n'.join(lines[-5:])
+    return preview
+
+def save_result(backend, model, prompt_file, prompt, results, iterations):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    prompt_tokens = count_tokens(prompt)
+    prompt_chars = len(prompt)
+    prompt_lines = len(prompt.split('\n'))
+    
+    with open(RESULTS_FILE, 'a', encoding='utf-8') as f:
+        f.write("=" * 80 + "\n")
+        f.write(f"TEST REPORT - {timestamp}\n")
+        f.write("=" * 80 + "\n\n")
+        
+        f.write(f"Backend: {backend.upper()}\n")
+        f.write(f"Model: {model}\n")
+        f.write(f"Prompt File: {prompt_file}\n")
+        f.write(f"Prompt Stats: {prompt_chars} chars, {prompt_lines} lines, ~{prompt_tokens} tokens\n")
+        f.write(f"Iterations: {iterations}\n\n")
+        
+        f.write("PROMPT PREVIEW:\n")
+        f.write("-" * 80 + "\n")
+        f.write(format_prompt_preview(prompt) + "\n")
+        f.write("-" * 80 + "\n\n")
+        
+        f.write("RESULTS:\n")
+        for i, (elapsed, tokens, tps) in enumerate(results, 1):
+            f.write(f"  Run {i}: {tps:.2f} tok/s ({tokens} tokens in {elapsed:.2f}s)\n")
+        
+        if results:
+            avg_tps = sum(r[2] for r in results) / len(results)
+            avg_time = sum(r[0] for r in results) / len(results)
+            total_tokens = sum(r[1] for r in results)
+            f.write(f"\nAVERAGE: {avg_tps:.2f} tok/s\n")
+            f.write(f"AVG TIME: {avg_time:.2f}s\n")
+            f.write(f"TOTAL OUTPUT TOKENS: {total_tokens}\n")
+        
+        f.write("\n\n")
 
 def menu_select(title, options, multi_select=False):
     selected = 0
@@ -111,7 +162,7 @@ def test_openai(url, model, prompt):
     tokens = data["usage"]["completion_tokens"]
     return elapsed, tokens
 
-def run_benchmark(backend, url, model, prompt, iterations):
+def run_benchmark(backend, url, model, prompt, prompt_file, iterations):
     print(f"\n🔄 Testing {model}...")
     print(f"📝 Prompt: {prompt[:60]}..." if len(prompt) > 60 else f"📝 Prompt: {prompt}")
     print(f"🔁 Iterations: {iterations}\n")
@@ -131,6 +182,7 @@ def run_benchmark(backend, url, model, prompt, iterations):
     if results:
         avg_tps = sum(r[2] for r in results) / len(results)
         print(f"\n✅ Average: {avg_tps:.2f} tok/s")
+        save_result(backend, model, prompt_file, prompt, results, iterations)
         return avg_tps
     return 0
 
@@ -209,6 +261,7 @@ def prompt_menu(backend, url, models, config):
                 prompt = load_prompt(prompt_file)
                 lines = prompt.split('\n')[:10]
                 
+                os.system('clear' if os.name != 'nt' else 'cls')
                 print(f"\n{'='*60}")
                 print(f"Model: {model}")
                 print(f"Prompt: {prompt_file}")
@@ -220,8 +273,15 @@ def prompt_menu(backend, url, models, config):
                 if len(prompt.split('\n')) > 10:
                     print("...")
                 print("-" * 60)
+                print("\nPress ENTER to start test, ESC to skip...")
                 
-                run_benchmark(backend, url, model, prompt, config["test_iterations"])
+                key = readchar.readkey()
+                if key == readchar.key.ESC:
+                    print("⏭️  Skipped")
+                    time.sleep(0.5)
+                    continue
+                
+                run_benchmark(backend, url, model, prompt, prompt_file, config["test_iterations"])
         
         input("\n✅ Tests complete. Press Enter to continue...")
 
