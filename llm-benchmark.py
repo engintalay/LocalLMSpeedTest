@@ -15,7 +15,7 @@ except ImportError:
     import readchar
 
 CONFIG_FILE = Path.home() / ".llm-benchmark-config.json"
-PROMPTS_DIR = Path(__file__).parent / "machine_tests/ml/auto_prompter/prompts"
+PROMPTS_DIR = Path(__file__).parent / "prompts"
 RESULTS_FILE = Path(__file__).parent / "results.txt"
 
 DEFAULT_CONFIG = {
