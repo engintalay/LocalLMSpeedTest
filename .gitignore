@@ -24,3 +24,6 @@ Thumbs.db
 
 # Config
 .llm-benchmark-config.json
+
+# Subprojects
+machine_tests/
