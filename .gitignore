@@ -28,5 +28,8 @@ Thumbs.db
 # Results
 results.txt
 
+# Temp files
+temp/
+
 # Subprojects
 machine_tests/
