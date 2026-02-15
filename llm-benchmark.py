@@ -317,7 +317,7 @@ def prompt_menu(backend, url, models, config):
     # Create session directory with timestamp
     session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     session_dir = TEMP_DIR / session_timestamp
-    performance_file = Path(__file__).parent / f"performans_{session_timestamp}.txt"
+    performance_file = session_dir / "performans.txt"
     
     results_summary = []
     
@@ -376,7 +376,7 @@ def prompt_menu(backend, url, models, config):
             print(f"{i}. {model:<40} | {prompt_file:<30} | {tps:>6.2f} tok/s")
         
         print("\n" + "="*80)
-        print(f"\n💾 Performance summary saved to: performans_{session_timestamp}.txt")
+        print(f"\n💾 Performance summary saved to: temp/{session_timestamp}/performans.txt")
     
     input("\n✅ Tests complete. Press Enter to continue...")
 
