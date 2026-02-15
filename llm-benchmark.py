@@ -17,17 +17,27 @@ except ImportError:
 CONFIG_FILE = Path.home() / ".llm-benchmark-config.json"
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 RESULTS_FILE = Path(__file__).parent / "results.txt"
+TEMP_DIR = Path(__file__).parent / "temp"
 
 DEFAULT_CONFIG = {
     "ollama_url": "http://localhost:11434",
     "llamacpp_url": "http://localhost:8080",
     "lmstudio_url": "http://localhost:1234",
-    "test_iterations": 3
+    "test_iterations": 3,
+    "temperature": 0.3,
+    "max_tokens": 8192,
+    "top_p": 0.95,
+    "repeat_penalty": 1.1
 }
 
 def load_config():
     if CONFIG_FILE.exists():
-        return json.loads(CONFIG_FILE.read_text())
+        config = json.loads(CONFIG_FILE.read_text())
+        # Merge with defaults for any missing keys
+        for key, value in DEFAULT_CONFIG.items():
+            if key not in config:
+                config[key] = value
+        return config
     return DEFAULT_CONFIG.copy()
 
 def save_config(config):
@@ -101,9 +111,9 @@ def menu_select(title, options, multi_select=False):
         print(f"╚{'═' * 50}╝\n")
         
         if multi_select:
-            print("Use ↑↓ to navigate, SPACE to mark, ENTER to confirm, ESC to cancel\n")
+            print("Use ↑↓ to navigate, SPACE to mark, ENTER to confirm, q to cancel\n")
         else:
-            print("Use ↑↓ to navigate, ENTER to select, ESC to cancel\n")
+            print("Use ↑↓ to navigate, ENTER to select, q to cancel\n")
         
         for i, opt in enumerate(options):
             prefix = "→ " if i == selected else "  "
@@ -120,7 +130,7 @@ def menu_select(title, options, multi_select=False):
             if multi_select:
                 return list(marked) if marked else None
             return selected
-        elif key == readchar.key.ESC:
+        elif key in ['q', 'Q', '\x1b']:  # q, Q or ESC
             return None
         elif multi_select and key == ' ':
             if selected in marked:
@@ -144,37 +154,93 @@ def get_openai_models(url):
 
 def test_ollama(url, model, prompt):
     start = time.time()
-    r = requests.post(f"{url}/api/generate", json={"model": model, "prompt": prompt, "stream": False})
+    payload = {"model": model, "prompt": prompt, "stream": False}
+    r = requests.post(f"{url}/api/generate", json=payload)
     elapsed = time.time() - start
     data = r.json()
     tokens = data.get("eval_count", 0)
-    return elapsed, tokens
+    return elapsed, tokens, payload, data
 
-def test_openai(url, model, prompt):
+def test_openai(url, model, prompt, config):
     start = time.time()
-    r = requests.post(f"{url}/v1/chat/completions", json={
+    payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "stream": False
-    })
+        "stream": False,
+        "temperature": config["temperature"],
+        "max_tokens": config["max_tokens"],
+        "top_p": config["top_p"],
+        "repeat_penalty": config["repeat_penalty"]
+    }
+    r = requests.post(f"{url}/v1/chat/completions", json=payload)
     elapsed = time.time() - start
     data = r.json()
     tokens = data["usage"]["completion_tokens"]
-    return elapsed, tokens
+    return elapsed, tokens, payload, data
 
-def run_benchmark(backend, url, model, prompt, prompt_file, iterations):
+def save_request_response(backend, model, prompt_file, prompt, payload, response, run_num, session_dir):
+    session_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    prompt_name = Path(prompt_file).stem
+    model_safe = model.replace("/", "_").replace(":", "_")
+    
+    base_name = f"{timestamp}_{backend}_{model_safe}_{prompt_name}_run{run_num}"
+    
+    # Request file
+    request_data = {
+        "backend": backend,
+        "model": model,
+        "prompt_file": prompt_file,
+        "timestamp": timestamp,
+        "run": run_num,
+        "payload": payload,
+        "prompt": prompt
+    }
+    (session_dir / f"{base_name}.req").write_text(json.dumps(request_data, indent=2, ensure_ascii=False))
+    
+    # Response file - JSON format
+    (session_dir / f"{base_name}.res.json").write_text(json.dumps(response, indent=2, ensure_ascii=False))
+    
+    # Response file - Formatted markdown
+    try:
+        if backend == "ollama":
+            content = response.get("response", "")
+        else:
+            # OpenAI format - check for thinking/reasoning
+            message = response.get("choices", [{}])[0].get("message", {})
+            content = message.get("content", "")
+            
+            # Check if there's a thinking/reasoning process
+            thinking = None
+            if "reasoning_content" in message:
+                thinking = message.get("reasoning_content")
+            elif "thinking" in message:
+                thinking = message.get("thinking")
+            
+            # Format with thinking section if exists
+            if thinking:
+                formatted_content = f"## 🧠 Düşünme Süreci\n\n```\n{thinking}\n```\n\n---\n\n## 💬 Cevap\n\n{content}"
+            else:
+                formatted_content = content
+        
+        (session_dir / f"{base_name}.res.md").write_text(formatted_content if backend != "ollama" else content, encoding='utf-8')
+    except:
+        pass
+
+def run_benchmark(backend, url, model, prompt, prompt_file, iterations, session_dir, config):
     print(f"\n🔄 Testing {model}...")
     print(f"📝 Prompt: {prompt[:60]}..." if len(prompt) > 60 else f"📝 Prompt: {prompt}")
     print(f"🔁 Iterations: {iterations}\n")
     results = []
     
-    test_fn = test_ollama if backend == "ollama" else test_openai
+    test_fn = test_ollama if backend == "ollama" else lambda u, m, p: test_openai(u, m, p, config)
     
     for i in range(iterations):
         try:
-            elapsed, tokens = test_fn(url, model, prompt)
+            elapsed, tokens, payload, response = test_fn(url, model, prompt)
             tps = tokens / elapsed if elapsed > 0 else 0
             results.append((elapsed, tokens, tps))
+            save_request_response(backend, model, prompt_file, prompt, payload, response, i+1, session_dir)
             print(f"  Run {i+1}: {tps:.2f} tok/s ({tokens} tokens in {elapsed:.2f}s)")
         except Exception as e:
             print(f"  Run {i+1}: ❌ Error - {e}")
@@ -221,18 +287,16 @@ def test_menu(backend, url, config):
         input("\nPress Enter to continue...")
         return
     
-    options = models + ["Test all models", "Back"]
-    choice = menu_select(f"{backend.upper()} Benchmark", options)
+    choices = menu_select(f"{backend.upper()} Benchmark - Select Models", models, multi_select=True)
     
-    if choice is None or choice == len(options) - 1:
+    if choices is None or not choices:
         return
     
-    test_all = (choice == len(models))
-    selected_models = models if test_all else [models[choice]]
+    selected_models = [models[i] for i in choices]
     
-    prompt_menu(backend, url, selected_models, config, test_all)
+    prompt_menu(backend, url, selected_models, config)
 
-def prompt_menu(backend, url, models, config, test_all=False):
+def prompt_menu(backend, url, models, config):
     prompts = get_prompts()
     
     if not prompts:
@@ -241,18 +305,19 @@ def prompt_menu(backend, url, models, config, test_all=False):
         input("\nPress Enter to continue...")
         return
     
-    options = prompts + ["Test all prompts", "Back"]
-    choice = menu_select("Select Prompt", options)
+    choices = menu_select("Select Prompts", prompts, multi_select=True)
     
-    if choice is None or choice == len(options) - 1:
+    if choices is None or not choices:
         return
     
-    if choice == len(prompts):
-        selected_prompts = prompts
-    else:
-        selected_prompts = [prompts[choice]]
+    selected_prompts = [prompts[i] for i in choices]
     
     os.system('clear' if os.name != 'nt' else 'cls')
+    
+    # Create session directory with timestamp
+    session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    session_dir = TEMP_DIR / session_timestamp
+    performance_file = Path(__file__).parent / f"performans_{session_timestamp}.txt"
     
     results_summary = []
     
@@ -274,8 +339,8 @@ def prompt_menu(backend, url, models, config, test_all=False):
                 print("...")
             print("-" * 60)
             
-            if test_all:
-                print("\n⏩ Auto-running (test all models mode)...")
+            if len(models) > 1 or len(selected_prompts) > 1:
+                print("\n⏩ Auto-running (multiple tests mode)...")
                 time.sleep(1)
             else:
                 print("\nPress ENTER to start test, ESC to skip...")
@@ -285,9 +350,19 @@ def prompt_menu(backend, url, models, config, test_all=False):
                     time.sleep(0.5)
                     continue
             
-            avg_tps = run_benchmark(backend, url, model, prompt, prompt_file, config["test_iterations"])
+            avg_tps = run_benchmark(backend, url, model, prompt, prompt_file, config["test_iterations"], session_dir, config)
             if avg_tps > 0:
                 results_summary.append((model, prompt_file, avg_tps))
+                
+                # Update performance file after each test
+                results_summary.sort(key=lambda x: x[2], reverse=True)
+                with open(performance_file, 'w', encoding='utf-8') as f:
+                    f.write("=" * 80 + "\n")
+                    f.write("📊 PERFORMANCE SUMMARY (Fastest to Slowest)\n")
+                    f.write("=" * 80 + "\n\n")
+                    for i, (m, p, tps) in enumerate(results_summary, 1):
+                        f.write(f"{i}. {m:<40} | {p:<30} | {tps:>6.2f} tok/s\n")
+                    f.write("\n" + "=" * 80 + "\n")
     
     if results_summary:
         os.system('clear' if os.name != 'nt' else 'cls')
@@ -301,6 +376,7 @@ def prompt_menu(backend, url, models, config, test_all=False):
             print(f"{i}. {model:<40} | {prompt_file:<30} | {tps:>6.2f} tok/s")
         
         print("\n" + "="*80)
+        print(f"\n💾 Performance summary saved to: performans_{session_timestamp}.txt")
     
     input("\n✅ Tests complete. Press Enter to continue...")
 
@@ -310,13 +386,17 @@ def settings_menu(config):
         f"llama.cpp URL: {config['llamacpp_url']}",
         f"LM Studio URL: {config['lmstudio_url']}",
         f"Iterations: {config['test_iterations']}",
+        f"Temperature: {config['temperature']}",
+        f"Max Tokens: {config['max_tokens']}",
+        f"Top P: {config['top_p']}",
+        f"Repeat Penalty: {config['repeat_penalty']}",
         "Back"
     ]
     
     while True:
         choice = menu_select("Settings", options)
         
-        if choice is None or choice == 4:
+        if choice is None or choice == 8:
             save_config(config)
             break
         
@@ -332,12 +412,36 @@ def settings_menu(config):
                 config["test_iterations"] = int(input("Enter iterations: ").strip())
             except:
                 pass
+        elif choice == 4:
+            try:
+                config["temperature"] = float(input("Enter temperature (0.0-2.0): ").strip())
+            except:
+                pass
+        elif choice == 5:
+            try:
+                config["max_tokens"] = int(input("Enter max tokens: ").strip())
+            except:
+                pass
+        elif choice == 6:
+            try:
+                config["top_p"] = float(input("Enter top_p (0.0-1.0): ").strip())
+            except:
+                pass
+        elif choice == 7:
+            try:
+                config["repeat_penalty"] = float(input("Enter repeat penalty: ").strip())
+            except:
+                pass
         
         options = [
             f"Ollama URL: {config['ollama_url']}",
             f"llama.cpp URL: {config['llamacpp_url']}",
             f"LM Studio URL: {config['lmstudio_url']}",
             f"Iterations: {config['test_iterations']}",
+            f"Temperature: {config['temperature']}",
+            f"Max Tokens: {config['max_tokens']}",
+            f"Top P: {config['top_p']}",
+            f"Repeat Penalty: {config['repeat_penalty']}",
             "Back"
         ]
 

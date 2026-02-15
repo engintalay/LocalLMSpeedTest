@@ -1,0 +1,22 @@
+{
+  "backend": "lmstudio",
+  "model": "turkish-gemma-9b-t1",
+  "prompt_file": "printer_soru_1_450T.txt",
+  "timestamp": "20260215_232704_317",
+  "run": 1,
+  "payload": {
+    "model": "turkish-gemma-9b-t1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Sen bir öğretmensin. Öğrencilerine sınav hazırlayacaksın ancak bu sınavı konuyu hiç bileyen bir kişi yapıp değerlendirecek. Buna göre aşağıdaki metni referans alarak 10 adet soru ve cevap üret. Soru ve cevaplar sadece bu metin ile alakalı olacak. Bu metin içinde yer almayan bir bilgi sorulmayacak ve cevap içine dahil edilmeyecek.\nSorular ve cevaplar için sadece Türkçe dilini kullanabilirsin. Her soru için mutlaka cevapta olacak.\nİşte mentin:\n\n\"Özel kağıtların kullanılması\nMakine, çeşitli kserografik kağıt ve yazı kağıdı ile sorunsuz çalışacak tasarlanmıştır. Fakat bazı kağıt değişkenleri, yazdırma kalitesini ya da kullanım güvenilirliğini etkileyebilir. İstenilen performansın elde edilmesi için satın almadan önce kağıt numunelerini deneyin. Kağıtları orijinal\npaketlerinin içinde kapalı şekilde muhafaza edin. Kağıtları düz konumda ve nem, direkt güneş ışığı ve ısıdan uzakta tutun. Kağıt seçerken göz önünde bulundurmanız gereken bazı konular şunlardır:  Kağıt sıkışmasına neden olabileceği ya da makinenize zarar verebileceği için inkjet\nkağıdı kullanmayın.  Önceden üzerine yazdırılmış kağıtta, makinenin fiksaj işleminin sıcaklığına (200 santigrat derece) dayanabilecek mürekkep kullanılmış olmalıdır.  Yazı kağıdı kullanıyorsanız pürüzlü yüzeyler ya da kıvrılmış ya da buruşmuş kağıtlar performans düşüklüğüne neden olabilir.\""
+      }
+    ],
+    "stream": false,
+    "temperature": 0.1,
+    "max_tokens": 8192,
+    "top_p": 0.1,
+    "repeat_penalty": 1.1
+  },
+  "prompt": "Sen bir öğretmensin. Öğrencilerine sınav hazırlayacaksın ancak bu sınavı konuyu hiç bileyen bir kişi yapıp değerlendirecek. Buna göre aşağıdaki metni referans alarak 10 adet soru ve cevap üret. Soru ve cevaplar sadece bu metin ile alakalı olacak. Bu metin içinde yer almayan bir bilgi sorulmayacak ve cevap içine dahil edilmeyecek.\nSorular ve cevaplar için sadece Türkçe dilini kullanabilirsin. Her soru için mutlaka cevapta olacak.\nİşte mentin:\n\n\"Özel kağıtların kullanılması\nMakine, çeşitli kserografik kağıt ve yazı kağıdı ile sorunsuz çalışacak tasarlanmıştır. Fakat bazı kağıt değişkenleri, yazdırma kalitesini ya da kullanım güvenilirliğini etkileyebilir. İstenilen performansın elde edilmesi için satın almadan önce kağıt numunelerini deneyin. Kağıtları orijinal\npaketlerinin içinde kapalı şekilde muhafaza edin. Kağıtları düz konumda ve nem, direkt güneş ışığı ve ısıdan uzakta tutun. Kağıt seçerken göz önünde bulundurmanız gereken bazı konular şunlardır:  Kağıt sıkışmasına neden olabileceği ya da makinenize zarar verebileceği için inkjet\nkağıdı kullanmayın.  Önceden üzerine yazdırılmış kağıtta, makinenin fiksaj işleminin sıcaklığına (200 santigrat derece) dayanabilecek mürekkep kullanılmış olmalıdır.  Yazı kağıdı kullanıyorsanız pürüzlü yüzeyler ya da kıvrılmış ya da buruşmuş kağıtlar performans düşüklüğüne neden olabilir.\""
+}

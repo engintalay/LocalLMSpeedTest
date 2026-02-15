@@ -1,0 +1,8 @@
+Sen bir öğretmensin. Öğrencilerine sınav hazırlayacaksın ancak bu sınavı konuyu hiç bileyen bir kişi yapıp değerlendirecek. Buna göre aşağıdaki metni referans alarak 10 adet soru ve cevap üret. Soru ve cevaplar sadece bu metin ile alakalı olacak. Bu metin içinde yer almayan bir bilgi sorulmayacak ve cevap içine dahil edilmeyecek.
+Sorular ve cevaplar için sadece Türkçe dilini kullanabilirsin. Her soru için mutlaka cevapta olacak.
+İşte mentin:
+
+"Özel kağıtların kullanılması
+Makine, çeşitli kserografik kağıt ve yazı kağıdı ile sorunsuz çalışacak tasarlanmıştır. Fakat bazı kağıt değişkenleri, yazdırma kalitesini ya da kullanım güvenilirliğini etkileyebilir. İstenilen performansın elde edilmesi için satın almadan önce kağıt numunelerini deneyin. Kağıtları orijinal
+paketlerinin içinde kapalı şekilde muhafaza edin. Kağıtları düz konumda ve nem, direkt güneş ışığı ve ısıdan uzakta tutun. Kağıt seçerken göz önünde bulundurmanız gereken bazı konular şunlardır:  Kağıt sıkışmasına neden olabileceği ya da makinenize zarar verebileceği için inkjet
+kağıdı kullanmayın.  Önceden üzerine yazdırılmış kağıtta, makinenin fiksaj işleminin sıcaklığına (200 santigrat derece) dayanabilecek mürekkep kullanılmış olmalıdır.  Yazı kağıdı kullanıyorsanız pürüzlü yüzeyler ya da kıvrılmış ya da buruşmuş kağıtlar performans düşüklüğüne neden olabilir."
