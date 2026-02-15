@@ -254,6 +254,8 @@ def prompt_menu(backend, url, models, config, test_all=False):
     
     os.system('clear' if os.name != 'nt' else 'cls')
     
+    results_summary = []
+    
     for model in models:
         for prompt_file in selected_prompts:
             prompt = load_prompt(prompt_file)
@@ -283,7 +285,22 @@ def prompt_menu(backend, url, models, config, test_all=False):
                     time.sleep(0.5)
                     continue
             
-            run_benchmark(backend, url, model, prompt, prompt_file, config["test_iterations"])
+            avg_tps = run_benchmark(backend, url, model, prompt, prompt_file, config["test_iterations"])
+            if avg_tps > 0:
+                results_summary.append((model, prompt_file, avg_tps))
+    
+    if results_summary:
+        os.system('clear' if os.name != 'nt' else 'cls')
+        print("\n" + "="*80)
+        print("📊 PERFORMANCE SUMMARY (Fastest to Slowest)")
+        print("="*80 + "\n")
+        
+        results_summary.sort(key=lambda x: x[2], reverse=True)
+        
+        for i, (model, prompt_file, tps) in enumerate(results_summary, 1):
+            print(f"{i}. {model:<40} | {prompt_file:<30} | {tps:>6.2f} tok/s")
+        
+        print("\n" + "="*80)
     
     input("\n✅ Tests complete. Press Enter to continue...")
 
