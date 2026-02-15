@@ -227,63 +227,65 @@ def test_menu(backend, url, config):
     if choice is None or choice == len(options) - 1:
         return
     
-    if choice == len(models):
-        selected_models = models
-    else:
-        selected_models = [models[choice]]
+    test_all = (choice == len(models))
+    selected_models = models if test_all else [models[choice]]
     
-    prompt_menu(backend, url, selected_models, config)
+    prompt_menu(backend, url, selected_models, config, test_all)
 
-def prompt_menu(backend, url, models, config):
+def prompt_menu(backend, url, models, config, test_all=False):
     prompts = get_prompts()
     
     if not prompts:
         os.system('clear' if os.name != 'nt' else 'cls')
-        print("❌ No prompts found in machine_tests/ml/auto_prompter/prompts/")
+        print("❌ No prompts found in prompts/")
         input("\nPress Enter to continue...")
         return
     
-    while True:
-        options = prompts + ["Test all prompts", "Back"]
-        choice = menu_select("Select Prompt", options)
-        
-        if choice is None or choice == len(options) - 1:
-            return
-        
-        if choice == len(prompts):
-            selected_prompts = prompts
-        else:
-            selected_prompts = [prompts[choice]]
-        
-        os.system('clear' if os.name != 'nt' else 'cls')
-        for model in models:
-            for prompt_file in selected_prompts:
-                prompt = load_prompt(prompt_file)
-                lines = prompt.split('\n')[:10]
-                
-                os.system('clear' if os.name != 'nt' else 'cls')
-                print(f"\n{'='*60}")
-                print(f"Model: {model}")
-                print(f"Prompt: {prompt_file}")
-                print(f"{'='*60}")
-                print("\n📝 First 10 lines of prompt:")
-                print("-" * 60)
-                for line in lines:
-                    print(line)
-                if len(prompt.split('\n')) > 10:
-                    print("...")
-                print("-" * 60)
+    options = prompts + ["Test all prompts", "Back"]
+    choice = menu_select("Select Prompt", options)
+    
+    if choice is None or choice == len(options) - 1:
+        return
+    
+    if choice == len(prompts):
+        selected_prompts = prompts
+    else:
+        selected_prompts = [prompts[choice]]
+    
+    os.system('clear' if os.name != 'nt' else 'cls')
+    
+    for model in models:
+        for prompt_file in selected_prompts:
+            prompt = load_prompt(prompt_file)
+            lines = prompt.split('\n')[:10]
+            
+            os.system('clear' if os.name != 'nt' else 'cls')
+            print(f"\n{'='*60}")
+            print(f"Model: {model}")
+            print(f"Prompt: {prompt_file}")
+            print(f"{'='*60}")
+            print("\n📝 First 10 lines of prompt:")
+            print("-" * 60)
+            for line in lines:
+                print(line)
+            if len(prompt.split('\n')) > 10:
+                print("...")
+            print("-" * 60)
+            
+            if test_all:
+                print("\n⏩ Auto-running (test all models mode)...")
+                time.sleep(1)
+            else:
                 print("\nPress ENTER to start test, ESC to skip...")
-                
                 key = readchar.readkey()
                 if key == readchar.key.ESC:
                     print("⏭️  Skipped")
                     time.sleep(0.5)
                     continue
-                
-                run_benchmark(backend, url, model, prompt, prompt_file, config["test_iterations"])
-        
-        input("\n✅ Tests complete. Press Enter to continue...")
+            
+            run_benchmark(backend, url, model, prompt, prompt_file, config["test_iterations"])
+    
+    input("\n✅ Tests complete. Press Enter to continue...")
 
 def settings_menu(config):
     options = [
