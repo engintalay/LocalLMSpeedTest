@@ -27,7 +27,9 @@ DEFAULT_CONFIG = {
     "temperature": 0.3,
     "max_tokens": 8192,
     "top_p": 0.95,
-    "repeat_penalty": 1.1
+    "repeat_penalty": 1.1,
+    "remote_servers": [],
+    "custom_models": {}
 }
 
 def load_config():
@@ -138,19 +140,31 @@ def menu_select(title, options, multi_select=False):
             else:
                 marked.add(selected)
 
-def get_ollama_models(url):
+def get_ollama_models(url, custom_models=None):
     try:
         r = requests.get(f"{url}/api/tags", timeout=2)
-        return [m["name"] for m in r.json()["models"]]
+        models = [m["name"] for m in r.json()["models"]]
     except:
-        return []
+        models = []
+    
+    # Add custom models for this backend
+    if custom_models:
+        models.extend(custom_models)
+    
+    return models
 
-def get_openai_models(url):
+def get_openai_models(url, custom_models=None):
     try:
         r = requests.get(f"{url}/v1/models", timeout=2)
-        return [m["id"] for m in r.json()["data"]]
+        models = [m["id"] for m in r.json()["data"]]
     except:
-        return []
+        models = []
+    
+    # Add custom models for this backend
+    if custom_models:
+        models.extend(custom_models)
+    
+    return models
 
 def test_ollama(url, model, prompt):
     start = time.time()
@@ -257,6 +271,7 @@ def main_menu(config):
         "Test Ollama models",
         "Test llama.cpp models", 
         "Test LM Studio models",
+        "Test Remote servers",
         "Settings",
         "Exit"
     ]
@@ -264,7 +279,7 @@ def main_menu(config):
     while True:
         choice = menu_select("LLM Speed Benchmark Tool", options)
         
-        if choice is None or choice == 4:
+        if choice is None or choice == 5:
             break
         elif choice == 0:
             test_menu("ollama", config["ollama_url"], config)
@@ -273,13 +288,17 @@ def main_menu(config):
         elif choice == 2:
             test_menu("lmstudio", config["lmstudio_url"], config)
         elif choice == 3:
+            remote_servers_menu(config)
+        elif choice == 4:
             settings_menu(config)
 
 def test_menu(backend, url, config):
+    custom_models = config.get("custom_models", {}).get(backend, [])
+    
     if backend == "ollama":
-        models = get_ollama_models(url)
+        models = get_ollama_models(url, custom_models)
     else:
-        models = get_openai_models(url)
+        models = get_openai_models(url, custom_models)
     
     if not models:
         os.system('clear' if os.name != 'nt' else 'cls')
@@ -287,6 +306,17 @@ def test_menu(backend, url, config):
         input("\nPress Enter to continue...")
         return
     
+    options = models + ["Manage custom models", "Back"]
+    choice = menu_select(f"{backend.upper()} Benchmark - Select Models", options, multi_select=False)
+    
+    if choice is None or choice == len(options) - 1:
+        return
+    
+    if choice == len(models):
+        manage_custom_models(backend, config)
+        return test_menu(backend, url, config)
+    
+    # Multi-select from models
     choices = menu_select(f"{backend.upper()} Benchmark - Select Models", models, multi_select=True)
     
     if choices is None or not choices:
@@ -305,7 +335,14 @@ def prompt_menu(backend, url, models, config):
         input("\nPress Enter to continue...")
         return
     
-    choices = menu_select("Select Prompts", prompts, multi_select=True)
+    # Add token count to prompt names
+    prompt_options = []
+    for p in prompts:
+        prompt_text = load_prompt(p)
+        token_count = count_tokens(prompt_text)
+        prompt_options.append(f"{p} (~{token_count} tokens)")
+    
+    choices = menu_select("Select Prompts", prompt_options, multi_select=True)
     
     if choices is None or not choices:
         return
@@ -444,6 +481,75 @@ def settings_menu(config):
             f"Repeat Penalty: {config['repeat_penalty']}",
             "Back"
         ]
+
+def manage_custom_models(backend, config):
+    if "custom_models" not in config:
+        config["custom_models"] = {}
+    if backend not in config["custom_models"]:
+        config["custom_models"][backend] = []
+    
+    while True:
+        models = config["custom_models"][backend]
+        options = models + ["Add new model", "Remove model", "Back"]
+        
+        choice = menu_select(f"Manage {backend.upper()} Custom Models", options)
+        
+        if choice is None or choice == len(options) - 1:
+            save_config(config)
+            break
+        
+        if choice == len(models):
+            # Add new model
+            os.system('clear' if os.name != 'nt' else 'cls')
+            model_name = input("Enter model name: ").strip()
+            if model_name and model_name not in config["custom_models"][backend]:
+                config["custom_models"][backend].append(model_name)
+                save_config(config)
+        elif choice == len(models) + 1:
+            # Remove model
+            if models:
+                remove_choice = menu_select("Select model to remove", models)
+                if remove_choice is not None:
+                    config["custom_models"][backend].pop(remove_choice)
+                    save_config(config)
+
+def remote_servers_menu(config):
+    if "remote_servers" not in config:
+        config["remote_servers"] = []
+    
+    while True:
+        servers = config["remote_servers"]
+        options = [f"{s['name']} ({s['url']})" for s in servers] + ["Add new server", "Remove server", "Test server", "Back"]
+        
+        choice = menu_select("Remote Servers", options)
+        
+        if choice is None or choice == len(options) - 1:
+            save_config(config)
+            break
+        
+        if choice == len(servers):
+            # Add new server
+            os.system('clear' if os.name != 'nt' else 'cls')
+            name = input("Enter server name: ").strip()
+            url = input("Enter server URL: ").strip()
+            backend = input("Enter backend type (ollama/openai): ").strip().lower()
+            if name and url and backend in ["ollama", "openai"]:
+                config["remote_servers"].append({"name": name, "url": url, "backend": backend})
+                save_config(config)
+        elif choice == len(servers) + 1:
+            # Remove server
+            if servers:
+                remove_choice = menu_select("Select server to remove", [f"{s['name']} ({s['url']})" for s in servers])
+                if remove_choice is not None:
+                    config["remote_servers"].pop(remove_choice)
+                    save_config(config)
+        elif choice == len(servers) + 2:
+            # Test server
+            if servers:
+                test_choice = menu_select("Select server to test", [f"{s['name']} ({s['url']})" for s in servers])
+                if test_choice is not None:
+                    server = servers[test_choice]
+                    test_menu(server["backend"], server["url"], config)
 
 if __name__ == "__main__":
     config = load_config()
